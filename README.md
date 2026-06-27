@@ -1,104 +1,187 @@
+<div align="center">
+
 # 🏭 Software Factory
 
-> Give it a GitHub issue. Wake up to a deployed PoC.
+**Give it a GitHub issue. Wake up to a deployed PoC.**
 
-**Software Factory** is an autonomous pipeline that takes a GitHub issue and produces a working proof-of-concept: specced, implemented, tested, reviewed, and live on Render — with zero human intervention.
+[![npm version](https://img.shields.io/npm/v/software-factory?style=flat-square&color=CB3837&logo=npm)](https://www.npmjs.com/package/software-factory)
+[![npm downloads](https://img.shields.io/npm/dm/software-factory?style=flat-square&color=CB3837&logo=npm)](https://www.npmjs.com/package/software-factory)
+[![GitHub stars](https://img.shields.io/github/stars/roshaninfordham/software-factory?style=flat-square&logo=github)](https://github.com/roshaninfordham/software-factory/stargazers)
+[![GitHub license](https://img.shields.io/github/license/roshaninfordham/software-factory?style=flat-square)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen?style=flat-square&logo=node.js)](https://nodejs.org)
+[![Powered by SuperPlane](https://img.shields.io/badge/powered%20by-SuperPlane-7fe2b4?style=flat-square)](https://superplane.com)
+[![Deploy on Render](https://img.shields.io/badge/deploy-Render-46E3B7?style=flat-square&logo=render)](https://render.com)
 
-Built on **[SuperPlane](https://superplane.com)** (AI workflow orchestration) + **[Render](https://render.com)** (cloud deployment).
+*Autonomous pipeline: spec → code → tests → deployment → PR — zero human steps.*
 
-## Install
+Built at the **[SuperPlane Hackathon: Bash Script Funeral /w Render](https://superplane.com)** · NYC, June 27 2026
+
+</div>
+
+---
+
+## Install & Run
 
 ```bash
 npx software-factory init
-```
-
-## Usage
-
-```bash
-# Set up once
-npx software-factory init
-
-# Health check
-npx software-factory doctor
-
-# Start the factory
 npx software-factory build https://github.com/org/repo/issues/42
-
-# Monitor progress
-npx software-factory status --watch
-
-# View logs
-npx software-factory logs
 ```
+
+That's it. The factory runs overnight and wakes up with a live preview URL on the PR.
+
+---
 
 ## What It Does
 
 ```
-GitHub Issue URL
-      ↓
-  Fetch Issue        →  reads title, body, labels from GitHub
-      ↓
-  Requirement Agent  →  Claude generates a detailed implementation spec
-      ↓
-  Implementation     →  Claude writes the code changes to a new branch
-  Agent
-      ↓
-  Validation Agent   →  clones repo, runs npm test / build / lint
-      ↓
-  Deploy to Render   →  deploys a preview environment on Render
-      ↓
-  PR Agent           →  creates PR + comments preview URL on the issue
+  you: npx software-factory build https://github.com/org/repo/issues/42
+
+  ──── SuperPlane Pipeline ────────────────────────────────────────────
+
+  [1/6] Fetch Issue         reading title, body, labels from GitHub
+  [2/6] Requirement Agent   Claude generates a precise implementation spec
+  [3/6] Implementation      Claude writes the code, pushes a branch
+  [4/6] Validation          npm install → lint → build → test (retries on fail)
+  [5/6] Deploy to Render    preview environment spun up automatically
+  [6/6] PR Agent            opens PR + comments the preview URL on the issue
+
+  ──── 8 hours later ─────────────────────────────────────────────────
+
+  you: wake up, check GitHub
+  PR: "feat: implement issue #42 [Software Factory]"
+  Preview: https://your-preview.onrender.com ✅
 ```
 
-Every stage runs in SuperPlane. Each stage validates the previous one before continuing. If validation fails, the pipeline stops and reports the error.
+Every stage validates the previous one before continuing. If tests fail, the pipeline stops and reports exactly what broke.
+
+---
+
+## Commands
+
+```bash
+npx software-factory init              # one-time setup wizard
+npx software-factory doctor            # verify all prerequisites
+npx software-factory build <url>       # trigger the pipeline
+npx software-factory status --watch    # live status updates
+npx software-factory logs              # per-stage execution output
+```
+
+### `init`
+Interactive wizard that:
+- Stores your API keys as **SuperPlane secrets** (never touches disk)
+- Creates the 7-node canvas on your SuperPlane account
+- Saves canvas ID to `~/.factory/config.json`
+
+### `doctor`
+```
+  ✔ SuperPlane API          Connected as your-account
+  ✔ Factory Canvas          Canvas "software-factory" (f77c363f...)
+  ✔ GitHub Token            GitHub user: @you
+  ✔ Render API Key          Render API reachable
+  ✔ Secret: anthropic-api-key
+  ✔ Secret: github-token
+  ✔ Secret: render-api-key
+```
+
+### `build <issue-url>`
+Accepts:
+```bash
+factory build https://github.com/owner/repo/issues/42
+factory build owner/repo#42
+factory build https://github.com/owner/repo/issues/42 --repo owner/other-repo
+```
+
+---
 
 ## Setup Requirements
 
-You'll need:
-- **SuperPlane API token** — [app.superplane.com](https://app.superplane.com)
-- **Anthropic API key** — [console.anthropic.com](https://console.anthropic.com)
-- **GitHub personal access token** — with `repo` scope
-- **Render API key** — [dashboard.render.com/u/settings](https://dashboard.render.com/u/settings)
+| What | Where to get it |
+|------|----------------|
+| **SuperPlane API token** | [app.superplane.com](https://app.superplane.com) → Profile → API token |
+| **Anthropic API key** | [console.anthropic.com](https://console.anthropic.com) |
+| **GitHub personal access token** | GitHub → Settings → Developer settings → PAT (needs `repo` scope) |
+| **Render API key** | [dashboard.render.com/u/settings](https://dashboard.render.com/u/settings) → API Keys |
+| **Render Service ID** | Your Render dashboard → the service you want to deploy to |
 
-`factory init` walks you through it interactively.
+---
 
 ## Architecture
 
 ```
-CLI (software-factory)
-        │
-        ▼
-SuperPlane Canvas (orchestrates pipeline)
-        │
-   ┌────┴────────────────────┐
-   │                         │
-Runner: fetch-issue    Claude: requirement-agent
-Runner: implementation-agent
-Runner: validation-agent
-Render: deploy-agent
-GitHub: pr-agent
+  CLI (npx software-factory)
+          │
+          │ POST /api/v1/canvases/:id/triggers/start/hooks/run
+          ▼
+  SuperPlane Canvas ─────────────────────────────────────────────────
+          │
+  ┌───────┴──────────────────────────────────────────────────────┐
+  │                                                              │
+  │  [start]                                                     │
+  │    ↓ (issue_url, repo)                                       │
+  │  [fetch-issue]     bash runner → GitHub REST API             │
+  │    ↓                                                         │
+  │  [requirement-agent]  bash runner → Anthropic API → spec.md  │
+  │    ↓                                                         │
+  │  [implementation-agent]  runner → Claude → code patches      │
+  │    ↓ git clone, apply, push branch                           │
+  │  [validation-agent]   runner → npm test/build/lint           │
+  │    ↓ (passed channel only)                                   │
+  │  [render-deploy]    Render API → preview deployment          │
+  │    ↓                                                         │
+  │  [pr-agent]         GitHub API → PR + issue comment          │
+  │                                                              │
+  └──────────────────────────────────────────────────────────────┘
 ```
 
-The CLI is just the trigger layer. SuperPlane handles the full orchestration, retries, and state management.
+The CLI is a thin trigger layer. **SuperPlane owns the full orchestration** — retries, state, parallel runs, and audit trail are all handled by the canvas.
+
+---
 
 ## Demo Issues
 
-These are the SuperPlane GitHub issues the factory was built to solve:
-
-- [#5368](https://github.com/superplanehq/superplane/issues/5368) — Markdown view mode (mermaid.js, mention chips)
-- [#5366](https://github.com/superplanehq/superplane/issues/5366) — Canvas version diff highlighting  
-- [#5164](https://github.com/superplanehq/superplane/issues/5164) — Send execution to agent chat
-- [#5704](https://github.com/superplanehq/superplane/issues/5704) — Run inspection UX paper cuts
-- [#5705](https://github.com/superplanehq/superplane/issues/5705) — Canvas warnings improvements
+These are the SuperPlane issues the factory was designed to solve end-to-end:
 
 ```bash
-factory build https://github.com/superplanehq/superplane/issues/5368
+factory build https://github.com/superplanehq/superplane/issues/5368  # Markdown view + Mermaid
+factory build https://github.com/superplanehq/superplane/issues/5366  # Canvas version diff
+factory build https://github.com/superplanehq/superplane/issues/5164  # Send execution to chat
+factory build https://github.com/superplanehq/superplane/issues/5704  # Run inspection UX
+factory build https://github.com/superplanehq/superplane/issues/5705  # Canvas warnings
 ```
 
-## Hackathon
+---
 
-Built at the [SuperPlane Hackathon: Bash Script Funeral /w Render](https://superplane.com) — June 27, 2026, NYC.
+## Star History
 
-**Prize tracks targeted:**
-- Main prize: Best Use of AI Agents
-- Partner track: Best Use of Render (Web Service + Postgres)
+<div align="center">
+
+[![Star History Chart](https://api.star-history.com/svg?repos=roshaninfordham/software-factory&type=Date)](https://star-history.com/#roshaninfordham/software-factory&Date)
+
+</div>
+
+---
+
+## Contributing
+
+PRs welcome. The pipeline itself lives in `src/superplane/canvas-template.js` — that's where you'd extend stages, add retry logic, or wire in new integrations.
+
+```bash
+git clone https://github.com/roshaninfordham/software-factory
+cd software-factory
+npm install
+node bin/factory.js --help
+```
+
+---
+
+## License
+
+MIT © [Roshan Sharma](https://github.com/roshaninfordham)
+
+---
+
+<div align="center">
+
+Built with [SuperPlane](https://superplane.com) · Deployed on [Render](https://render.com) · Models by [Anthropic](https://anthropic.com)
+
+</div>
