@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Overnight Software Factory: Give it a GitHub issue, wake up to a deployed PoC. Powered by SuperPlane + Render.",
   "bin": {
-    "factory": "./bin/factory.js"
+    "factory": "bin/factory.js"
   },
   "type": "module",
   "main": "./src/index.js",
@@ -39,6 +39,6 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/superplanehq/software-factory"
+    "url": "git+https://github.com/superplanehq/software-factory.git"
   }
 }
